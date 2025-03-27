@@ -1,45 +1,16 @@
 #pragma once
 
-#include <array>
 #include <cassert>
-#include <cstring>
 #include <stdint.h>
 #include <unordered_map>
 #include <unordered_set>
-#include <iostream>
-#include <atomic>
 #include <vector>
-#include <map>
 #include <sys/types.h>
-#include <ctime>
-#include <numeric>
-#include <string>
-#include <cstddef>
 #include <unistd.h>
 #include <cmath>
-#include <algorithm>
-#include <vector>
-#include <functional>
 #include <chrono>
-#include <iterator>
-#include <functional>
-#include <iostream>
-#include <numeric>
-#include <string>
-#include <vector>
-#include <iostream>
-#include <iostream>
 #include <fstream>
-#include <sstream>
-#include <vector>
-#include <map>
-#include <set>
-#include <algorithm>
-#include <iterator>
-#include <queue>
-#include <iostream>
 #include <memory>
-#include <type_traits>
 
 static constexpr int DEFAULT_TICK_INTERVAL = 10;
 static constexpr int WHEEL_BUCKETS = 4;
@@ -47,28 +18,32 @@ static constexpr int WHEEL_BITS = 8;
 static constexpr unsigned int WHEEL_SIZE = (1 << WHEEL_BITS);
 static constexpr unsigned int WHEEL_MASK = (WHEEL_SIZE - 1);
 static constexpr uint32_t LARGEST_SLOT = 0xffffffffUL;
-
-typedef std::chrono::milliseconds Duration;
+static constexpr std::chrono::milliseconds INTERVAL = std::chrono::milliseconds(DEFAULT_TICK_INTERVAL);
 
 class WheelTimer {
 public:
-    WheelTimer(): startTime_(GetCurTime()), expireTick_(1), interval_({Duration(DEFAULT_TICK_INTERVAL)}) {
-    }
+    WheelTimer() = default;
 
     ~WheelTimer() = default;
 
+    // delete copy constructor
+    WheelTimer(const WheelTimer&) = delete;
+
+    // assignment operator
+    WheelTimer& operator=(const WheelTimer&) = delete;
+
     uint32_t Add(uint32_t delay_ms) {
         auto timeout = std::chrono::milliseconds(delay_ms);
-        auto now = GetCurTime();
-        auto nextTick = CalcNextTick(now);
+        auto now = std::chrono::system_clock::now();
+        auto now_tick = std::chrono::duration_cast<std::chrono::milliseconds>
+                        (now - startTime_).count() / INTERVAL.count();
+        int64_t end_tick = now_tick + timeout.count() / INTERVAL.count();
 
         auto t = std::make_shared<TimerNode>();
         t->id = timer_id_++;
-        t->expiration = now + timeout;
+        t->when = now + timeout;
 
-        int64_t ticks = TimeToWheelTicks(timeout);
-        int64_t due = ticks + nextTick;
-        ScheduleTimeoutImpl(t, due, expireTick_);
+        AddImpl(t, end_tick);
 
         return t->id;
     }
@@ -82,8 +57,8 @@ public:
         auto t = it->second;
         timer_map_.erase(it);
 
-        auto index1 = t->index1;
-        auto index2 = t->index2;
+        auto index1 = t->index_bucket;
+        auto index2 = t->index_idx;
         if (index1 < 0 || index1 >= WHEEL_BUCKETS || index2 < 0 || index2 >= (int) WHEEL_SIZE ||
             buckets_[index1][index2].find(t->id) == buckets_[index1][index2].end()) {
             return false;
@@ -94,138 +69,96 @@ public:
     }
 
     std::vector<uint32_t> Update() {
-        auto curTime = GetCurTime();
-        auto nextTick = CalcNextTick(curTime);
+        auto now = std::chrono::system_clock::now();
+        auto now_tick = std::chrono::duration_cast<std::chrono::milliseconds>
+                        (now - startTime_).count() / INTERVAL.count();
         std::vector<uint32_t> ret;
-        while (expireTick_ < nextTick) {
+        while (expireTick_ < now_tick) {
             int idx = expireTick_ & WHEEL_MASK;
 
             if (idx == 0) {
                 // Cascade timers
-                if (cascadeTimers(1, (expireTick_ >> WHEEL_BITS) & WHEEL_MASK, curTime) &&
-                    cascadeTimers(2, (expireTick_ >> (2 * WHEEL_BITS)) & WHEEL_MASK, curTime)) {
-                    cascadeTimers(3, (expireTick_ >> (3 * WHEEL_BITS)) & WHEEL_MASK, curTime);
+                if (CascadeTimers(1, (expireTick_ >> WHEEL_BITS) & WHEEL_MASK, now)) {
+                    if (CascadeTimers(2, (expireTick_ >> (2 * WHEEL_BITS)) & WHEEL_MASK, now)) {
+                        CascadeTimers(3, (expireTick_ >> (3 * WHEEL_BITS)) & WHEEL_MASK, now);
+                    }
                 }
             }
 
+            auto& bucket = buckets_[0][idx];
             expireTick_++;
-            for (auto& it: buckets_[0][idx]) {
+            ret.reserve(ret.size() + bucket.size());
+            for (auto& it: bucket) {
                 ret.push_back(it.second->id);
                 timer_map_.erase(it.second->id);
             }
-            buckets_[0][idx].clear();
+            bucket.clear();
         }
 
         return ret;
     }
 
+    size_t Size() const {
+        return timer_map_.size();
+    }
+
 private:
     struct TimerNode {
-        std::chrono::time_point<std::chrono::steady_clock> expiration;
+        std::chrono::time_point<std::chrono::system_clock> when;
         uint32_t id = 0;
-        int index1 = 0;
-        int index2 = 0;
+        int index_bucket = 0;
+        int index_idx = 0;
     };
 
     typedef std::shared_ptr<TimerNode> TimerNodePtr;
 
-    class HHWheelTimerDurationInterval {
-    public:
-        explicit HHWheelTimerDurationInterval(Duration interval)
-            : divInterval_(interval.count()),
-              divIntervalForSteadyClock_(
-                  std::chrono::duration_cast<std::chrono::steady_clock::duration>(interval).count()),
-              interval_(interval) {
-        }
-
-        int64_t ToWheelTicksFromSteadyClock(std::chrono::steady_clock::duration t) const {
-            return t.count() / divIntervalForSteadyClock_;
-        }
-
-        int64_t ToWheelTicks(Duration t) const {
-            return t.count() / divInterval_;
-        }
-
-        Duration FromWheelTicks(int64_t t) const {
-            return t * interval_;
-        }
-
-        Duration Interval() const {
-            return interval_;
-        }
-
-    private:
-        uint64_t divInterval_;
-        uint64_t divIntervalForSteadyClock_;
-        Duration interval_;
-    };
-
-    std::chrono::steady_clock::time_point GetCurTime() {
-        return std::chrono::steady_clock::now();
-    }
-
-    int64_t CalcNextTick(std::chrono::steady_clock::time_point curTime) {
-        return interval_.ToWheelTicksFromSteadyClock(curTime - startTime_);
-    }
-
-    int64_t TimeToWheelTicks(Duration t) {
-        return interval_.ToWheelTicks(t);
-    }
-
-    void ScheduleTimeoutImpl(TimerNodePtr t, int64_t dueTick, int64_t nextTickToProcess) {
-        int64_t diff = dueTick - nextTickToProcess;
+    void AddImpl(TimerNodePtr t, int64_t end_tick) {
+        int64_t diff = end_tick - expireTick_;
         assert(diff >= 0);
         if (diff < WHEEL_SIZE) {
-            t->index1 = 0;
-            t->index2 = dueTick & WHEEL_MASK;
-            buckets_[t->index1][t->index2][t->id] = t;
+            t->index_bucket = 0;
+            t->index_idx = end_tick & WHEEL_MASK;
         } else if (diff < 1 << (2 * WHEEL_BITS)) {
-            buckets_[1][(dueTick >> WHEEL_BITS) & WHEEL_MASK][t->id] = t;
-            t->index1 = 1;
-            buckets_[t->index1][t->index2][t->id] = t;
+            buckets_[1][(end_tick >> WHEEL_BITS) & WHEEL_MASK][t->id] = t;
+            t->index_bucket = 1;
         } else if (diff < 1 << (3 * WHEEL_BITS)) {
-            t->index1 = 2;
-            t->index2 = (dueTick >> 2 * WHEEL_BITS) & WHEEL_MASK;
-            buckets_[t->index1][t->index2][t->id] = t;
+            t->index_bucket = 2;
+            t->index_idx = (end_tick >> 2 * WHEEL_BITS) & WHEEL_MASK;
         } else {
             /* in largest slot */
             if (diff > LARGEST_SLOT) {
                 diff = LARGEST_SLOT;
-                dueTick = diff + nextTickToProcess;
+                end_tick = diff + expireTick_;
             }
-            t->index1 = 3;
-            t->index2 = (dueTick >> 3 * WHEEL_BITS) & WHEEL_MASK;
-            buckets_[t->index1][t->index2][t->id] = t;
+            t->index_bucket = 3;
+            t->index_idx = (end_tick >> 3 * WHEEL_BITS) & WHEEL_MASK;
         }
+        buckets_[t->index_bucket][t->index_idx][t->id] = t;
         timer_map_[t->id] = t;
     }
 
-    bool cascadeTimers(int bucket, int tick, const std::chrono::steady_clock::time_point curTime) {
+    bool CascadeTimers(int bucket, int tick, const std::chrono::system_clock::time_point now) {
         std::unordered_map<uint32_t, TimerNodePtr> tmp;
         tmp.swap(buckets_[bucket][tick]);
-        auto nextTick = CalcNextTick(curTime);
+        auto now_tick = std::chrono::duration_cast<std::chrono::milliseconds>
+                        (now - startTime_).count() / INTERVAL.count();
         for (auto& it: tmp) {
             auto t = it.second;
-            ScheduleTimeoutImpl(t, nextTick + TimeToWheelTicks(GetTimeRemaining(t, curTime)),
-                                expireTick_);
+            auto diff = now >= t->when
+                            ? std::chrono::milliseconds(0)
+                            : std::chrono::duration_cast<std::chrono::milliseconds>(t->when - now);
+            auto diff_tick = diff.count() / INTERVAL.count();
+            AddImpl(t, now_tick + diff_tick);
         }
 
         // If tick is zero, timeoutExpired will cascade the next bucket.
         return tick == 0;
     }
 
-    Duration GetTimeRemaining(TimerNodePtr t, std::chrono::steady_clock::time_point now) const {
-        if (now >= t->expiration) {
-            return Duration(0);
-        }
-        return std::chrono::duration_cast<Duration>(t->expiration - now);
-    }
-
 private:
     uint32_t timer_id_ = 0;
-    std::chrono::steady_clock::time_point startTime_;
-    int64_t expireTick_;
-    HHWheelTimerDurationInterval interval_;
+    std::chrono::system_clock::time_point startTime_ = std::chrono::system_clock::now();
+    int64_t expireTick_ = 1;
     std::unordered_map<uint32_t, TimerNodePtr> buckets_[WHEEL_BUCKETS][WHEEL_SIZE];
     std::unordered_map<uint32_t, TimerNodePtr> timer_map_;
 };
