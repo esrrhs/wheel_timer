@@ -11,6 +11,7 @@
 #include <chrono>
 #include <fstream>
 #include <memory>
+#include <algorithm>
 
 static constexpr int DEFAULT_TICK_INTERVAL = 10;
 static constexpr int WHEEL_BUCKETS = 4;
@@ -59,12 +60,23 @@ public:
 
         auto index_bucket = t->index_bucket;
         auto index_idx = t->index_idx;
-        if (index_bucket < 0 || index_bucket >= WHEEL_BUCKETS || index_idx < 0 || index_idx >= (int) WHEEL_SIZE ||
-            buckets_[index_bucket][index_idx].find(t->id) == buckets_[index_bucket][index_idx].end()) {
+        if (index_bucket < 0 || index_bucket >= WHEEL_BUCKETS || index_idx < 0 || index_idx >= (int) WHEEL_SIZE) {
             return false;
         }
 
-        buckets_[index_bucket][index_idx].erase(t->id);
+        auto &bucket = buckets_[index_bucket][index_idx];
+
+        if (t->index_vec < 0 || t->index_vec >= (int) bucket.size()) {
+            return false;
+        }
+
+        auto last = bucket.back();
+        if (last->index_vec != t->index_vec) {
+            bucket[t->index_vec] = last;
+            last->index_vec = t->index_vec;
+        }
+        bucket.pop_back();
+
         return true;
     }
 
@@ -88,9 +100,9 @@ public:
             auto &bucket = buckets_[0][idx];
             expireTick_++;
             ret.reserve(ret.size() + bucket.size());
-            for (auto &it: bucket) {
-                ret.push_back(it.second->id);
-                timer_map_.erase(it.second->id);
+            for (auto &t: bucket) {
+                ret.push_back(t->id);
+                timer_map_.erase(t->id);
             }
             bucket.clear();
         }
@@ -108,6 +120,7 @@ private:
         uint32_t id = 0;
         int index_bucket = 0;
         int index_idx = 0;
+        int index_vec = 0;
     };
 
     typedef std::shared_ptr<TimerNode> TimerNodePtr;
@@ -132,15 +145,18 @@ private:
             t->index_bucket = 3;
             t->index_idx = (end_tick >> 3 * WHEEL_BITS) & WHEEL_MASK;
         }
-        buckets_[t->index_bucket][t->index_idx][t->id] = t;
+
+        auto &bucket = buckets_[t->index_bucket][t->index_idx];
+        t->index_vec = (int) bucket.size();
+        bucket.push_back(t);
+
         timer_map_[t->id] = t;
     }
 
     bool CascadeTimers(int bucket, int tick) {
-        std::unordered_map<uint32_t, TimerNodePtr> tmp;
+        std::vector<TimerNodePtr> tmp;
         tmp.swap(buckets_[bucket][tick]);
-        for (auto &it: tmp) {
-            auto t = it.second;
+        for (auto &t: tmp) {
             AddImpl(t, t->when);
         }
 
@@ -152,6 +168,6 @@ private:
     uint32_t timer_id_ = 0;
     std::chrono::system_clock::time_point startTime_ = std::chrono::system_clock::now();
     int64_t expireTick_ = 0;
-    std::unordered_map<uint32_t, TimerNodePtr> buckets_[WHEEL_BUCKETS][WHEEL_SIZE];
+    std::vector<TimerNodePtr> buckets_[WHEEL_BUCKETS][WHEEL_SIZE];
     std::unordered_map<uint32_t, TimerNodePtr> timer_map_;
 };
