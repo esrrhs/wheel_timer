@@ -1,3 +1,0 @@
-/home/runner/work/wheel_timer/wheel_timer/build/CMakeFiles/wheel_timer_test.dir
-/home/runner/work/wheel_timer/wheel_timer/build/CMakeFiles/edit_cache.dir
-/home/runner/work/wheel_timer/wheel_timer/build/CMakeFiles/rebuild_cache.dir

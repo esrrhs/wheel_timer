@@ -35,7 +35,7 @@ public:
 
     uint32_t Add(uint32_t delay_ms) {
         auto timeout = std::chrono::milliseconds(delay_ms);
-        auto now = std::chrono::system_clock::now();
+        auto now = Clock::now();
         auto end_time = now + timeout;
         auto end_tick = std::chrono::duration_cast<std::chrono::milliseconds>
                                 (end_time - startTime_).count() / INTERVAL.count();
@@ -81,7 +81,7 @@ public:
     }
 
     std::vector<uint32_t> Update() {
-        auto now = std::chrono::system_clock::now();
+        auto now = Clock::now();
         auto now_tick = std::chrono::duration_cast<std::chrono::milliseconds>
                                 (now - startTime_).count() / INTERVAL.count();
         std::vector<uint32_t> ret;
@@ -166,7 +166,9 @@ private:
 
 private:
     uint32_t timer_id_ = 0;
-    std::chrono::system_clock::time_point startTime_ = std::chrono::system_clock::now();
+    using Clock = std::chrono::steady_clock;
+
+    Clock::time_point startTime_ = Clock::now();
     int64_t expireTick_ = 0;
     std::vector<TimerNodePtr> buckets_[WHEEL_BUCKETS][WHEEL_SIZE];
     std::unordered_map<uint32_t, TimerNodePtr> timer_map_;
