@@ -40,11 +40,17 @@ public:
             // Expire on the next Update, even if the current tick has not advanced.
             end_tick = expireTick_;
         } else {
+            // Ceil(deadline - start) in nanoseconds so a timer never becomes
+            // due before the requested delay (ms truncation would fire early).
             auto deadline = now + std::chrono::milliseconds(delay_ms);
-            auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>
-                    (deadline - startTime_).count();
-            // Round up so a delay of N ms is not truncated onto an earlier tick.
-            end_tick = (elapsed_ms + INTERVAL.count() - 1) / INTERVAL.count();
+            auto delta = deadline - startTime_;
+            if (delta < Clock::duration::zero()) {
+                end_tick = expireTick_;
+            } else {
+                auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(delta).count();
+                auto step = std::chrono::duration_cast<std::chrono::nanoseconds>(INTERVAL).count();
+                end_tick = (ns + step - 1) / step;
+            }
             if (end_tick < expireTick_) {
                 end_tick = expireTick_;
             }

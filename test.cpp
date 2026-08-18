@@ -1,6 +1,8 @@
 #include <thread>
 #include <iostream>
 #include <map>
+#include <vector>
+#include <cstdlib>
 
 #include "wheel_timer.h"
 
@@ -9,6 +11,17 @@
         std::cout << "Assertion failed " << #x << " on line " << __LINE__ << std::endl; \
         exit(1); \
     }
+
+static std::vector<uint32_t> wait_expired(WheelTimer &t, uint32_t delay_ms) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+    auto ret = t.Update();
+    if (!ret.empty()) {
+        return ret;
+    }
+    // Alignment to the 10ms tick can require one extra tick after the delay.
+    std::this_thread::sleep_for(INTERVAL);
+    return t.Update();
+}
 
 int test() {
     {
@@ -24,8 +37,7 @@ int test() {
         WheelTimer t;
         auto id = t.Add(10);
         ASSERT(t.Update().empty());
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        auto ret = t.Update();
+        auto ret = wait_expired(t, 10);
         ASSERT(ret.size() == 1);
         ASSERT(ret[0] == id);
         ASSERT(t.Size() == 0);
@@ -36,14 +48,12 @@ int test() {
     auto t2 = t.Add(2000);
     auto t3 = t.Add(3000);
     ASSERT(t.Size() == 3);
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    auto ret = t.Update();
+    auto ret = wait_expired(t, 1000);
     ASSERT(ret.size() == 1);
     ASSERT(ret[0] == t1);
     ASSERT(t.Size() == 2);
     std::cout << "tid " << t1 << " timeout" << std::endl;
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    ret = t.Update();
+    ret = wait_expired(t, 1000);
     ASSERT(ret.size() == 1);
     ASSERT(ret[0] == t2);
     ASSERT(t.Size() == 1);
