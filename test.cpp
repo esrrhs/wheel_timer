@@ -11,24 +11,44 @@
     }
 
 int test() {
+    {
+        WheelTimer t;
+        auto id = t.Add(0);
+        auto ret = t.Update();
+        ASSERT(ret.size() == 1);
+        ASSERT(ret[0] == id);
+        ASSERT(t.Size() == 0);
+        std::cout << "tid " << id << " zero-delay timeout" << std::endl;
+    }
+    {
+        WheelTimer t;
+        auto id = t.Add(10);
+        ASSERT(t.Update().empty());
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        auto ret = t.Update();
+        ASSERT(ret.size() == 1);
+        ASSERT(ret[0] == id);
+        ASSERT(t.Size() == 0);
+        std::cout << "tid " << id << " one-tick timeout" << std::endl;
+    }
     WheelTimer t;
     auto t1 = t.Add(1000);
     auto t2 = t.Add(2000);
     auto t3 = t.Add(3000);
     ASSERT(t.Size() == 3);
-    std::this_thread::sleep_for(std::chrono::milliseconds(1010));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     auto ret = t.Update();
     ASSERT(ret.size() == 1);
     ASSERT(ret[0] == t1);
     ASSERT(t.Size() == 2);
     std::cout << "tid " << t1 << " timeout" << std::endl;
-    std::this_thread::sleep_for(std::chrono::milliseconds(1010));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     ret = t.Update();
     ASSERT(ret.size() == 1);
     ASSERT(ret[0] == t2);
     ASSERT(t.Size() == 1);
     std::cout << "tid " << t2 << " timeout" << std::endl;
-    std::this_thread::sleep_for(std::chrono::milliseconds(1010));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     auto ok = t.Del(t3);
     ASSERT(ok);
     ASSERT(t.Size() == 0);

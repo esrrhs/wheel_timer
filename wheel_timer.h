@@ -34,11 +34,21 @@ public:
     WheelTimer &operator=(const WheelTimer &) = delete;
 
     uint32_t Add(uint32_t delay_ms) {
-        auto timeout = std::chrono::milliseconds(delay_ms);
         auto now = Clock::now();
-        auto end_time = now + timeout;
-        auto end_tick = std::chrono::duration_cast<std::chrono::milliseconds>
-                                (end_time - startTime_).count() / INTERVAL.count();
+        int64_t end_tick = 0;
+        if (delay_ms == 0) {
+            // Expire on the next Update, even if the current tick has not advanced.
+            end_tick = expireTick_;
+        } else {
+            auto deadline = now + std::chrono::milliseconds(delay_ms);
+            auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>
+                    (deadline - startTime_).count();
+            // Round up so a delay of N ms is not truncated onto an earlier tick.
+            end_tick = (elapsed_ms + INTERVAL.count() - 1) / INTERVAL.count();
+            if (end_tick < expireTick_) {
+                end_tick = expireTick_;
+            }
+        }
 
         auto t = std::make_shared<TimerNode>();
         t->id = timer_id_++;
@@ -56,17 +66,18 @@ public:
         }
 
         auto t = it->second;
-        timer_map_.erase(it);
 
         auto index_bucket = t->index_bucket;
         auto index_idx = t->index_idx;
         if (index_bucket < 0 || index_bucket >= WHEEL_BUCKETS || index_idx < 0 || index_idx >= (int) WHEEL_SIZE) {
+            timer_map_.erase(it);
             return false;
         }
 
         auto &bucket = buckets_[index_bucket][index_idx];
 
         if (t->index_vec < 0 || t->index_vec >= (int) bucket.size()) {
+            timer_map_.erase(it);
             return false;
         }
 
@@ -76,6 +87,7 @@ public:
             last->index_vec = t->index_vec;
         }
         bucket.pop_back();
+        timer_map_.erase(it);
 
         return true;
     }
@@ -85,7 +97,8 @@ public:
         auto now_tick = std::chrono::duration_cast<std::chrono::milliseconds>
                                 (now - startTime_).count() / INTERVAL.count();
         std::vector<uint32_t> ret;
-        while (expireTick_ < now_tick) {
+        // Include the current tick so a timer due at now_tick fires in this Update.
+        while (expireTick_ <= now_tick) {
             int idx = expireTick_ & WHEEL_MASK;
 
             if (idx == 0) {
@@ -101,8 +114,10 @@ public:
             expireTick_++;
             ret.reserve(ret.size() + bucket.size());
             for (auto &t: bucket) {
-                ret.push_back(t->id);
-                timer_map_.erase(t->id);
+                // Skip nodes cancelled from the map but left on the wheel.
+                if (timer_map_.erase(t->id)) {
+                    ret.push_back(t->id);
+                }
             }
             bucket.clear();
         }
@@ -127,7 +142,12 @@ private:
 
     void AddImpl(TimerNodePtr t, int64_t end_tick) {
         int64_t diff = end_tick - expireTick_;
-        if (diff < WHEEL_SIZE) {
+        if (diff < 0) {
+            // Already due: place on the slot Update will process next, not a past index.
+            t->when = expireTick_;
+            t->index_bucket = 0;
+            t->index_idx = expireTick_ & WHEEL_MASK;
+        } else if (diff < WHEEL_SIZE) {
             t->index_bucket = 0;
             t->index_idx = end_tick & WHEEL_MASK;
         } else if (diff < 1 << (2 * WHEEL_BITS)) {
@@ -135,15 +155,16 @@ private:
             t->index_idx = (end_tick >> WHEEL_BITS) & WHEEL_MASK;
         } else if (diff < 1 << (3 * WHEEL_BITS)) {
             t->index_bucket = 2;
-            t->index_idx = (end_tick >> 2 * WHEEL_BITS) & WHEEL_MASK;
+            t->index_idx = (end_tick >> (2 * WHEEL_BITS)) & WHEEL_MASK;
         } else {
             /* in largest slot */
             if (diff > LARGEST_SLOT) {
                 diff = LARGEST_SLOT;
                 end_tick = diff + expireTick_;
+                t->when = end_tick;
             }
             t->index_bucket = 3;
-            t->index_idx = (end_tick >> 3 * WHEEL_BITS) & WHEEL_MASK;
+            t->index_idx = (end_tick >> (3 * WHEEL_BITS)) & WHEEL_MASK;
         }
 
         auto &bucket = buckets_[t->index_bucket][t->index_idx];
