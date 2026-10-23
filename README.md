@@ -1,42 +1,45 @@
 # WheelTimer
+
+English | [中文](README_zh.md)
+
 C++ Hashed Hierarchical Wheel Timer, inspired by [Folly HHWheelTimer](https://github.com/facebook/folly/blob/main/folly/io/async/HHWheelTimer.h).
-header only, no dependencies.
+Header only, no dependencies.
 
-## 算法演示 / Algorithm Demo
+## Algorithm Demo
 
-交互式可视化（教学尺寸 4 层 × 8 槽），**点开即可操作**：
+Interactive visualization (teaching size: 4 layers × 8 slots). Open and try it:
 
-**[▶ 在线算法演示](https://esrrhs.github.io/wheel_timer/)**
+**[▶ Live algorithm demo](https://esrrhs.github.io/wheel_timer/)**
 
-（同源文件也可本地打开 [`docs/wheel_timer_demo.html`](docs/wheel_timer_demo.html)，单文件、无构建、无外部依赖。）
+(Same file can also be opened locally: [`docs/wheel_timer_demo.html`](docs/wheel_timer_demo.html) — single file, no build, no external deps.)
 
-演示覆盖与 `wheel_timer.h` 一致的四类操作：
+The demo covers the four operations that match `wheel_timer.h`:
 
-- **插入 Insert（Add / AddImpl）**：`delay_ms` → `end_tick`，按 `diff = end_tick - expireTick_` 落入层 0..3，槽位由 `end_tick` 右移后取 mask；并写入 `timer_map_`。
-- **触发 Trigger（Update）**：推进 `expireTick_`，弹出层 0 当前槽内到期定时器。
-- **轮转 Cascade（CascadeTimers）**：层 0 指针回绕（`idx == 0`）时，从高层对应槽取出定时器并重新 `AddImpl` 降级。
-- **删除 Delete（Del）**：按 id 在 `timer_map_` 定位，从 bucket 向量 swap-remove 后擦除 map。
+- **Insert (Add / AddImpl)**: `delay_ms` → `end_tick`; place by `diff = end_tick - expireTick_` into layer 0..3; slot from `end_tick` after right-shift and mask; also write `timer_map_`.
+- **Trigger (Update)**: advance `expireTick_`, pop timers due in the current layer-0 slot.
+- **Cascade (CascadeTimers)**: when the layer-0 pointer wraps (`idx == 0`), take timers from the matching higher-layer slot and re-`AddImpl` them (demote).
+- **Delete (Del)**: look up by id in `timer_map_`, swap-remove from the bucket vector, then erase the map entry.
 
-> 真实参数：`WHEEL_BUCKETS = 4`，`WHEEL_BITS = 8`（每层 256 槽），`DEFAULT_TICK_INTERVAL = 10ms`。演示页使用缩小的 8 槽以便看清级联，数学与源码一致。
+> Production parameters: `WHEEL_BUCKETS = 4`, `WHEEL_BITS = 8` (256 slots per layer), `DEFAULT_TICK_INTERVAL = 10ms`. The demo uses a shrunk 8-slot wheel so cascades are easy to see; the math matches the source.
 
 ```mermaid
 flowchart TB
-  subgraph L3["层 3 · 最慢"]
+  subgraph L3["Layer 3 · slowest"]
     B3["256 slots"]
   end
-  subgraph L2["层 2"]
+  subgraph L2["Layer 2"]
     B2["256 slots"]
   end
-  subgraph L1["层 1"]
+  subgraph L1["Layer 1"]
     B1["256 slots"]
   end
-  subgraph L0["层 0 · 最快 / Update 扫描"]
-    B0["256 slots · expireTick_ 指针"]
+  subgraph L0["Layer 0 · fastest / Update scans"]
+    B0["256 slots · expireTick_ pointer"]
   end
-  L3 -->|Cascade 回绕时降级| L2
+  L3 -->|Cascade demote on wrap| L2
   L2 -->|Cascade| L1
   L1 -->|Cascade| L0
-  L0 -->|到期触发| Fire["返回 expired ids"]
+  L0 -->|Fire due| Fire["Return expired ids"]
 ```
 
 ## Usage

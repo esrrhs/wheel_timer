@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>WheelTimer 算法演示 · Hashed Hierarchical Wheel Timer</title>
+<title>WheelTimer Algorithm Demo · Hashed Hierarchical Wheel Timer</title>
 <style>
   :root {
     --bg: #0f1419;
@@ -374,6 +374,42 @@
   .step.s-cascade h3 { color: var(--cascade); }
   .step.s-delete h3 { color: var(--delete); }
   .step p { color: var(--muted); font-size: 0.78rem; }
+
+  /* Language toggle */
+  .header-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .lang-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .lang-toggle button {
+    background: transparent;
+    color: var(--muted);
+    border: none;
+    border-radius: 0;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .lang-toggle button.active {
+    background: var(--accent);
+    color: #0a1520;
+  }
+  .lang-toggle button:hover:not(.active) {
+    color: var(--text);
+    filter: none;
+  }
   footer {
     margin-top: 24px;
     text-align: center;
@@ -386,84 +422,88 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>WheelTimer <span>算法演示</span></h1>
-    <p class="subtitle">Hashed Hierarchical Wheel Timer · 对应 esrrhs/wheel_timer（仿 Folly HHWheelTimer）</p>
+    <div class="header-row">
+      <div>
+        <h1>WheelTimer <span id="i18n-title-span">Algorithm Demo</span></h1>
+        <p class="subtitle" id="i18n-subtitle">Hashed Hierarchical Wheel Timer · esrrhs/wheel_timer (Folly HHWheelTimer–inspired)</p>
+      </div>
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button type="button" id="lang-en" data-lang="en">EN</button>
+        <button type="button" id="lang-zh" data-lang="zh">中文</button>
+      </div>
+    </div>
   </header>
 
-  <div class="note">
-    <strong>教学尺寸：</strong>本演示使用 <code>WHEEL_BITS = 3</code> → 每层 <strong>8</strong> 个槽、共 <strong>4</strong> 层，tick = 1 单位，便于看清插入与轮转。
-    真实代码为 <code>WHEEL_BITS = 8</code>（每层 256 槽）、<code>DEFAULT_TICK_INTERVAL = 10ms</code>。
-    层级判定与级联逻辑与 <code>wheel_timer.h</code> 一致：按 <code>diff = end_tick − expireTick_</code> 落入对应层，层 0 指针回绕时 <code>CascadeTimers</code> 将高层定时器重新 <code>AddImpl</code>。
-  </div>
+  <div class="note" id="i18n-note"></div>
 
   <div class="layout">
     <div>
       <div class="card">
         <div class="status">
           <div class="item">expireTick_ <b id="st-tick">0</b></div>
-          <div class="item">下一槽 (L0) <b id="st-idx">0</b></div>
-          <div class="item">活跃定时器 <b id="st-size">0</b></div>
-          <div class="item">下次 ID <b id="st-nid">0</b></div>
+          <div class="item"><span id="i18n-st-idx">Next slot (L0)</span> <b id="st-idx">0</b></div>
+          <div class="item"><span id="i18n-st-size">Active timers</span> <b id="st-size">0</b></div>
+          <div class="item"><span id="i18n-st-nid">Next ID</span> <b id="st-nid">0</b></div>
         </div>
         <div class="wheels" id="wheels"></div>
         <div class="legend">
-          <span class="lg-L0">层 0（最快）</span>
-          <span class="lg-L1">层 1</span>
-          <span class="lg-L2">层 2</span>
-          <span class="lg-L3">层 3（最慢）</span>
-          <span class="lg-cursor">当前指针</span>
-          <span class="lg-fire">触发/过期</span>
+          <span class="lg-L0" id="i18n-lg-L0">Layer 0 (fastest)</span>
+          <span class="lg-L1" id="i18n-lg-L1">Layer 1</span>
+          <span class="lg-L2" id="i18n-lg-L2">Layer 2</span>
+          <span class="lg-L3" id="i18n-lg-L3">Layer 3 (slowest)</span>
+          <span class="lg-cursor" id="i18n-lg-cursor">Cursor</span>
+          <span class="lg-fire" id="i18n-lg-fire">Fire / expire</span>
         </div>
       </div>
     </div>
 
     <div class="controls">
       <div class="card">
-        <h2><span class="dot" style="background:var(--insert)"></span> 插入 Insert</h2>
+        <h2><span class="dot" style="background:var(--insert)"></span> <span id="i18n-h-insert">Insert</span></h2>
         <div class="ctrl-group">
-          <label>延迟 delay（tick 单位）</label>
+          <label id="i18n-label-delay">Delay (tick units)</label>
           <div class="row">
             <input type="number" id="delay-input" value="5" min="0" max="4095" />
-            <button class="btn-insert" id="btn-insert">插入 Add</button>
+            <button class="btn-insert" id="btn-insert">Add</button>
           </div>
-          <p class="ops-hint">diff &lt; 8 → L0；&lt; 64 → L1；&lt; 512 → L2；否则 L3</p>
+          <p class="ops-hint" id="i18n-hint-insert">diff &lt; 8 → L0; &lt; 64 → L1; &lt; 512 → L2; else L3</p>
         </div>
       </div>
 
       <div class="card">
-        <h2><span class="dot" style="background:var(--L1)"></span> 触发 Trigger</h2>
+        <h2><span class="dot" style="background:var(--L1)"></span> <span id="i18n-h-trigger">Trigger</span></h2>
         <div class="ctrl-group">
           <div class="row">
-            <button class="btn-trigger" id="btn-step">步进 1 tick</button>
-            <button class="btn-step" id="btn-step5">步进 5</button>
+            <button class="btn-trigger" id="btn-step">Step 1 tick</button>
+            <button class="btn-step" id="btn-step5">Step 5</button>
           </div>
-          <p class="ops-hint">Update：处理 buckets_[0][idx]，回绕时先 Cascade</p>
+          <p class="ops-hint" id="i18n-hint-trigger">Update: process buckets_[0][idx]; Cascade first on wrap</p>
         </div>
       </div>
 
       <div class="card">
-        <h2><span class="dot" style="background:var(--delete)"></span> 删除 Delete</h2>
+        <h2><span class="dot" style="background:var(--delete)"></span> <span id="i18n-h-delete">Delete</span></h2>
         <div class="ctrl-group">
-          <label>定时器 ID（或点击槽内芯片）</label>
+          <label id="i18n-label-del">Timer ID (or click a chip in a slot)</label>
           <div class="row">
             <input type="number" id="del-input" value="0" min="0" />
-            <button class="btn-delete" id="btn-delete">删除 Del</button>
+            <button class="btn-delete" id="btn-delete">Del</button>
           </div>
         </div>
       </div>
 
       <div class="card">
-        <h2><span class="dot" style="background:#a371f7"></span> 演示</h2>
+        <h2><span class="dot" style="background:#a371f7"></span> <span id="i18n-h-demo">Demo</span></h2>
         <div class="row" style="margin-bottom:8px">
-          <button class="btn-demo" id="btn-demo">▶ 演示一遍</button>
+          <button class="btn-demo" id="btn-demo">▶ Run walkthrough</button>
         </div>
         <div class="row">
-          <button class="btn-reset" id="btn-reset">重置 Reset</button>
+          <button class="btn-reset" id="btn-reset">Reset</button>
         </div>
       </div>
 
       <div class="card">
-        <h2><span class="dot" style="background:var(--muted)"></span> 操作日志</h2>
+        <h2><span class="dot" style="background:var(--muted)"></span> <span id="i18n-h-log">Operation log</span></h2>
         <div class="log-panel" id="log"></div>
       </div>
     </div>
@@ -472,27 +512,27 @@
   <div class="walkthrough">
     <div class="steps">
       <div class="step s-insert">
-        <h3>① 插入 Insert</h3>
-        <p>delay → end_tick；按 diff 选层，slot = (end_tick ≫ bits×layer) &amp; mask；写入 buckets_ 与 timer_map_。</p>
+        <h3 id="i18n-w-insert-h">① Insert</h3>
+        <p id="i18n-w-insert-p">delay → end_tick; pick layer by diff; slot = (end_tick ≫ bits×layer) &amp; mask; write buckets_ and timer_map_.</p>
       </div>
       <div class="step s-trigger">
-        <h3>② 触发 Trigger</h3>
-        <p>Update 推进 expireTick_；弹出层 0 当前槽内全部定时器并返回 ID 列表。</p>
+        <h3 id="i18n-w-trigger-h">② Trigger</h3>
+        <p id="i18n-w-trigger-p">Update advances expireTick_; pop all timers in the current layer-0 slot and return their IDs.</p>
       </div>
       <div class="step s-cascade">
-        <h3>③ 轮转 Cascade</h3>
-        <p>层 0 指针 idx==0 时，从高层对应槽取出定时器并重新 AddImpl（降级到更低层）。</p>
+        <h3 id="i18n-w-cascade-h">③ Cascade</h3>
+        <p id="i18n-w-cascade-p">When layer-0 pointer idx==0, take timers from the matching higher-layer slot and re-AddImpl (demote to a lower layer).</p>
       </div>
       <div class="step s-delete">
-        <h3>④ 删除 Delete</h3>
-        <p>按 id 查 timer_map_，从所在 bucket 向量 swap-remove，再擦除 map 项。</p>
+        <h3 id="i18n-w-delete-h">④ Delete</h3>
+        <p id="i18n-w-delete-p">Look up id in timer_map_, swap-remove from the bucket vector, then erase the map entry.</p>
       </div>
     </div>
   </div>
 
-  <footer>
-    源码：<a href="../wheel_timer.h">wheel_timer.h</a> ·
-    打开本页：克隆仓库后用浏览器打开 <code>docs/wheel_timer_demo.html</code>（无需构建）
+  <footer id="i18n-footer">
+    Source: <a href="../wheel_timer.h">wheel_timer.h</a> ·
+    Open locally: clone the repo and open <code>docs/wheel_timer_demo.html</code> in a browser (no build)
   </footer>
 </div>
 
@@ -626,6 +666,218 @@
     }
   }
 
+  // --- i18n ---
+  const I18N = {
+    en: {
+      pageTitle: 'WheelTimer Algorithm Demo · Hashed Hierarchical Wheel Timer',
+      titleSpan: 'Algorithm Demo',
+      subtitle: 'Hashed Hierarchical Wheel Timer · esrrhs/wheel_timer (Folly HHWheelTimer–inspired)',
+      note: '<strong>Teaching size:</strong> This demo uses <code>WHEEL_BITS = 3</code> → <strong>8</strong> slots per layer, <strong>4</strong> layers, tick = 1 unit, so insert and cascade are easy to see. Production code uses <code>WHEEL_BITS = 8</code> (256 slots per layer) and <code>DEFAULT_TICK_INTERVAL = 10ms</code>. Layer choice and cascade match <code>wheel_timer.h</code>: place by <code>diff = end_tick − expireTick_</code>; on layer-0 wrap, <code>CascadeTimers</code> re-<code>AddImpl</code>s higher-layer timers.',
+      stIdx: 'Next slot (L0)',
+      stSize: 'Active timers',
+      stNid: 'Next ID',
+      lgL0: 'Layer 0 (fastest)',
+      lgL1: 'Layer 1',
+      lgL2: 'Layer 2',
+      lgL3: 'Layer 3 (slowest)',
+      lgCursor: 'Cursor',
+      lgFire: 'Fire / expire',
+      hInsert: 'Insert',
+      labelDelay: 'Delay (tick units)',
+      btnInsert: 'Add',
+      hintInsert: 'diff < 8 → L0; < 64 → L1; < 512 → L2; else L3',
+      hTrigger: 'Trigger',
+      btnStep: 'Step 1 tick',
+      btnStep5: 'Step 5',
+      hintTrigger: 'Update: process buckets_[0][idx]; Cascade first on wrap',
+      hDelete: 'Delete',
+      labelDel: 'Timer ID (or click a chip in a slot)',
+      btnDelete: 'Del',
+      hDemo: 'Demo',
+      btnDemo: '▶ Run walkthrough',
+      btnReset: 'Reset',
+      hLog: 'Operation log',
+      wInsertH: '① Insert',
+      wInsertP: 'delay → end_tick; pick layer by diff; slot = (end_tick ≫ bits×layer) & mask; write buckets_ and timer_map_.',
+      wTriggerH: '② Trigger',
+      wTriggerP: 'Update advances expireTick_; pop all timers in the current layer-0 slot and return their IDs.',
+      wCascadeH: '③ Cascade',
+      wCascadeP: 'When layer-0 pointer idx==0, take timers from the matching higher-layer slot and re-AddImpl (demote to a lower layer).',
+      wDeleteH: '④ Delete',
+      wDeleteP: 'Look up id in timer_map_, swap-remove from the bucket vector, then erase the map entry.',
+      footer: 'Source: <a href="../wheel_timer.h">wheel_timer.h</a> · Open locally: clone the repo and open <code>docs/wheel_timer_demo.html</code> in a browser (no build)',
+      layerName: (L) => `Layer ${L}`,
+      layerMeta: (range, unit) => `${range}<br/>stride ${unit} tick`,
+      tagInsert: 'Insert',
+      tagTrigger: 'Trigger',
+      tagCascade: 'Cascade',
+      tagDelete: 'Delete',
+      tagFire: 'Fire',
+      tagInfo: 'Info',
+      tagDemo: 'Demo',
+      logInsert: (id, delay, when, diff, layer, slot) =>
+        `T${id} delay=${delay} → end_tick=${when} (diff=${diff}) → L${layer} slot[${slot}]`,
+      logCascade: (layer, slot, ids) =>
+        `L${layer} slot[${slot}] cascade ↓ re-insert: ${ids || '(empty)'}`,
+      logFire: (idx, fired, tick) =>
+        `expireTick slot[${idx}] → due ${fired}; expireTick_ → ${tick}`,
+      logTriggerEmpty: (idx, tick) =>
+        `slot[${idx}] empty; expireTick_ → ${tick}`,
+      logDelMiss: (id) => `T${id} not found`,
+      logDelOk: (id, layer, slot) =>
+        `T${id} removed from L${layer} slot[${slot}] (swap-remove)`,
+      logReset: 'Reset. Teaching wheel: 4 layers × 8 slots. Real library: 4 × 256, tick=10ms.',
+      logDemoStart: 'Canned sequence: insert → step → cascade → delete → fire remaining',
+      logDemoStepWrap: 'Stepping toward wrap; watch layer-0 fires…',
+      logDemoDelete: 'Delete a not-yet-due timer T1…',
+      logDemoCascade: 'Keep stepping; on layer-0 wrap you will see higher-layer Cascade demotion',
+      logDemoNextCascade: 'Next step processes slot[0]: Cascade higher layers first, then fire layer 0',
+      logDemoFireCascaded: 'Keep firing timers that demoted into layer 0…',
+      logDemoEnd: 'Demo finished. Insert / step / delete manually to explore further.',
+    },
+    zh: {
+      pageTitle: 'WheelTimer 算法演示 · Hashed Hierarchical Wheel Timer',
+      titleSpan: '算法演示',
+      subtitle: 'Hashed Hierarchical Wheel Timer · 对应 esrrhs/wheel_timer（仿 Folly HHWheelTimer）',
+      note: '<strong>教学尺寸：</strong>本演示使用 <code>WHEEL_BITS = 3</code> → 每层 <strong>8</strong> 个槽、共 <strong>4</strong> 层，tick = 1 单位，便于看清插入与轮转。真实代码为 <code>WHEEL_BITS = 8</code>（每层 256 槽）、<code>DEFAULT_TICK_INTERVAL = 10ms</code>。层级判定与级联逻辑与 <code>wheel_timer.h</code> 一致：按 <code>diff = end_tick − expireTick_</code> 落入对应层，层 0 指针回绕时 <code>CascadeTimers</code> 将高层定时器重新 <code>AddImpl</code>。',
+      stIdx: '下一槽 (L0)',
+      stSize: '活跃定时器',
+      stNid: '下次 ID',
+      lgL0: '层 0（最快）',
+      lgL1: '层 1',
+      lgL2: '层 2',
+      lgL3: '层 3（最慢）',
+      lgCursor: '当前指针',
+      lgFire: '触发/过期',
+      hInsert: '插入 Insert',
+      labelDelay: '延迟 delay（tick 单位）',
+      btnInsert: '插入 Add',
+      hintInsert: 'diff < 8 → L0；< 64 → L1；< 512 → L2；否则 L3',
+      hTrigger: '触发 Trigger',
+      btnStep: '步进 1 tick',
+      btnStep5: '步进 5',
+      hintTrigger: 'Update：处理 buckets_[0][idx]，回绕时先 Cascade',
+      hDelete: '删除 Delete',
+      labelDel: '定时器 ID（或点击槽内芯片）',
+      btnDelete: '删除 Del',
+      hDemo: '演示',
+      btnDemo: '▶ 演示一遍',
+      btnReset: '重置 Reset',
+      hLog: '操作日志',
+      wInsertH: '① 插入 Insert',
+      wInsertP: 'delay → end_tick；按 diff 选层，slot = (end_tick ≫ bits×layer) & mask；写入 buckets_ 与 timer_map_。',
+      wTriggerH: '② 触发 Trigger',
+      wTriggerP: 'Update 推进 expireTick_；弹出层 0 当前槽内全部定时器并返回 ID 列表。',
+      wCascadeH: '③ 轮转 Cascade',
+      wCascadeP: '层 0 指针 idx==0 时，从高层对应槽取出定时器并重新 AddImpl（降级到更低层）。',
+      wDeleteH: '④ 删除 Delete',
+      wDeleteP: '按 id 查 timer_map_，从所在 bucket 向量 swap-remove，再擦除 map 项。',
+      footer: '源码：<a href="../wheel_timer.h">wheel_timer.h</a> · 打开本页：克隆仓库后用浏览器打开 <code>docs/wheel_timer_demo.html</code>（无需构建）',
+      layerName: (L) => `层 ${L}`,
+      layerMeta: (range, unit) => `${range}<br/>步长 ${unit} tick`,
+      tagInsert: '插入',
+      tagTrigger: '触发',
+      tagCascade: '轮转',
+      tagDelete: '删除',
+      tagFire: '触发',
+      tagInfo: '信息',
+      tagDemo: '演示',
+      logInsert: (id, delay, when, diff, layer, slot) =>
+        `T${id} delay=${delay} → end_tick=${when} (diff=${diff}) → 层${layer} 槽[${slot}]`,
+      logCascade: (layer, slot, ids) =>
+        `层${layer} 槽[${slot}] 级联 ↓ 重新插入: ${ids || '(空)'}`,
+      logFire: (idx, fired, tick) =>
+        `expireTick 处理槽[${idx}] → 到期 ${fired}；expireTick_ → ${tick}`,
+      logTriggerEmpty: (idx, tick) =>
+        `槽[${idx}] 空；expireTick_ → ${tick}`,
+      logDelMiss: (id) => `未找到 T${id}`,
+      logDelOk: (id, layer, slot) =>
+        `T${id} 从 层${layer} 槽[${slot}] 移除（swap-remove）`,
+      logReset: '已重置。教学轮：4 层 × 8 槽。真实库：4 × 256，tick=10ms。',
+      logDemoStart: '开始罐头序列：插入 → 步进 → 轮转 → 删除 → 触发剩余',
+      logDemoStepWrap: '步进至即将回绕，观察层 0 触发…',
+      logDemoDelete: '删除一个尚未到期的定时器 T1…',
+      logDemoCascade: '继续步进；层 0 回绕时将看到高层定时器 Cascade 降级',
+      logDemoNextCascade: '下一步将处理槽[0]：先 Cascade 高层，再触发层 0',
+      logDemoFireCascaded: '继续触发已降级到层 0 的定时器…',
+      logDemoEnd: '演示结束。可手动插入/步进/删除继续探索。',
+    }
+  };
+
+  let currentLang = 'en';
+  function t() { return I18N[currentLang]; }
+
+  function detectLang() {
+    const params = new URLSearchParams(location.search);
+    const q = (params.get('lang') || '').toLowerCase();
+    if (q === 'en' || q === 'zh') return q;
+    try {
+      const saved = localStorage.getItem('wheel_timer_lang');
+      if (saved === 'en' || saved === 'zh') return saved;
+    } catch (e) {}
+    const nav = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
+    return nav.startsWith('zh') ? 'zh' : 'en';
+  }
+
+  function applyLang(lang) {
+    if (lang !== 'en' && lang !== 'zh') lang = 'en';
+    currentLang = lang;
+    const S = I18N[lang];
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+    document.title = S.pageTitle;
+    const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    const setHtml = (id, val) => { const el = document.getElementById(id); if (el) el.innerHTML = val; };
+    setText('i18n-title-span', S.titleSpan);
+    setText('i18n-subtitle', S.subtitle);
+    setHtml('i18n-note', S.note);
+    setText('i18n-st-idx', S.stIdx);
+    setText('i18n-st-size', S.stSize);
+    setText('i18n-st-nid', S.stNid);
+    setText('i18n-lg-L0', S.lgL0);
+    setText('i18n-lg-L1', S.lgL1);
+    setText('i18n-lg-L2', S.lgL2);
+    setText('i18n-lg-L3', S.lgL3);
+    setText('i18n-lg-cursor', S.lgCursor);
+    setText('i18n-lg-fire', S.lgFire);
+    setText('i18n-h-insert', S.hInsert);
+    setText('i18n-label-delay', S.labelDelay);
+    setText('btn-insert', S.btnInsert);
+    setText('i18n-hint-insert', S.hintInsert);
+    setText('i18n-h-trigger', S.hTrigger);
+    setText('btn-step', S.btnStep);
+    setText('btn-step5', S.btnStep5);
+    setText('i18n-hint-trigger', S.hintTrigger);
+    setText('i18n-h-delete', S.hDelete);
+    setText('i18n-label-del', S.labelDel);
+    setText('btn-delete', S.btnDelete);
+    setText('i18n-h-demo', S.hDemo);
+    setText('btn-demo', S.btnDemo);
+    setText('btn-reset', S.btnReset);
+    setText('i18n-h-log', S.hLog);
+    setText('i18n-w-insert-h', S.wInsertH);
+    setText('i18n-w-insert-p', S.wInsertP);
+    setText('i18n-w-trigger-h', S.wTriggerH);
+    setText('i18n-w-trigger-p', S.wTriggerP);
+    setText('i18n-w-cascade-h', S.wCascadeH);
+    setText('i18n-w-cascade-p', S.wCascadeP);
+    setText('i18n-w-delete-h', S.wDeleteH);
+    setText('i18n-w-delete-p', S.wDeleteP);
+    setHtml('i18n-footer', S.footer);
+    document.getElementById('lang-en').classList.toggle('active', lang === 'en');
+    document.getElementById('lang-zh').classList.toggle('active', lang === 'zh');
+    try { localStorage.setItem('wheel_timer_lang', lang); } catch (e) {}
+    // Refresh wheel labels without clearing timers
+    document.querySelectorAll('.wheel-row').forEach((row, L) => {
+      const name = row.querySelector('.name');
+      const meta = row.querySelector('.meta');
+      if (name) name.textContent = S.layerName(L);
+      if (meta) {
+        const unit = 1 << (L * WHEEL_BITS);
+        meta.innerHTML = S.layerMeta(LAYER_RANGE[L], unit);
+      }
+    });
+  }
+
   // UI
   const wt = new WheelTimer();
   let selectedId = null;
@@ -645,6 +897,7 @@
   }
 
   function buildWheels() {
+    const S = t();
     wheelsEl.innerHTML = '';
     for (let L = 0; L < WHEEL_BUCKETS; L++) {
       const row = document.createElement('div');
@@ -653,8 +906,8 @@
       const unit = 1 << bits;
       row.innerHTML = `
         <div class="wheel-label">
-          <div class="name">层 ${L}</div>
-          <div class="meta">${LAYER_RANGE[L]}<br/>步长 ${unit} tick</div>
+          <div class="name">${S.layerName(L)}</div>
+          <div class="meta">${S.layerMeta(LAYER_RANGE[L], unit)}</div>
         </div>
         <div class="slots" data-layer="${L}"></div>`;
       const slots = row.querySelector('.slots');
@@ -743,11 +996,12 @@
 
   function doInsert(delay) {
     const before = wt.expireTick_;
-    const t = wt.Add(delay);
-    const diff = t.when - before;
-    log('插入', `T${t.id} delay=${delay} → end_tick=${t.when} (diff=${diff}) → 层${t.index_bucket} 槽[${t.index_idx}]`, 'tag-insert');
-    render({ insert: { layer: t.index_bucket, slot: t.index_idx, id: t.id } });
-    return t;
+    const timer = wt.Add(delay);
+    const diff = timer.when - before;
+    const S = t();
+    log(S.tagInsert, S.logInsert(timer.id, delay, timer.when, diff, timer.index_bucket, timer.index_idx), 'tag-insert');
+    render({ insert: { layer: timer.index_bucket, slot: timer.index_idx, id: timer.id } });
+    return timer;
   }
 
   async function doStep(animate) {
@@ -755,8 +1009,9 @@
     const { fired, cascades, idx } = wt.stepOne();
 
     if (cascades.length) {
+      const S = t();
       for (const c of cascades) {
-        log('轮转', `层${c.layer} 槽[${c.slot}] 级联 ↓ 重新插入: ${c.ids.map(i => 'T' + i).join(', ') || '(空)'}`, 'tag-cascade');
+        log(S.tagCascade, S.logCascade(c.layer, c.slot, c.ids.map(i => 'T' + i).join(', ')), 'tag-cascade');
       }
       if (animate) {
         // Show cascade source slots briefly before final render
@@ -765,10 +1020,13 @@
       }
     }
 
-    if (fired.length) {
-      log('触发', `expireTick 处理槽[${idx}] → 到期 ${fired.map(i => 'T' + i).join(', ')}；expireTick_ → ${wt.expireTick_}`, 'tag-fire');
-    } else {
-      log('触发', `槽[${idx}] 空；expireTick_ → ${wt.expireTick_}`, 'tag-trigger');
+    {
+      const S = t();
+      if (fired.length) {
+        log(S.tagFire, S.logFire(idx, fired.map(i => 'T' + i).join(', '), wt.expireTick_), 'tag-fire');
+      } else {
+        log(S.tagTrigger, S.logTriggerEmpty(idx, wt.expireTick_), 'tag-trigger');
+      }
     }
 
     // Show fire highlight on the slot that was processed
@@ -784,12 +1042,13 @@
 
   function doDelete(id) {
     const res = wt.Del(id);
+    const S = t();
     if (!res) {
-      log('删除', `未找到 T${id}`, 'tag-delete');
+      log(S.tagDelete, S.logDelMiss(id), 'tag-delete');
       render();
       return;
     }
-    log('删除', `T${res.id} 从 层${res.layer} 槽[${res.slot}] 移除（swap-remove）`, 'tag-delete');
+    log(S.tagDelete, S.logDelOk(res.id, res.layer, res.slot), 'tag-delete');
     if (selectedId === id) selectedId = null;
     render({ deleted: { layer: res.layer, slot: res.slot } });
   }
@@ -799,7 +1058,8 @@
     wt.reset();
     selectedId = null;
     logEl.innerHTML = '';
-    log('信息', '已重置。教学轮：4 层 × 8 槽。真实库：4 × 256，tick=10ms。', 'tag-info');
+    const S = t();
+    log(S.tagInfo, S.logReset, 'tag-info');
     render();
   }
 
@@ -808,7 +1068,7 @@
     demoRunning = true;
     setBusy(true);
     resetAll();
-    log('演示', '开始罐头序列：插入 → 步进 → 轮转 → 删除 → 触发剩余', 'tag-demo');
+    log(t().tagDemo, t().logDemoStart, 'tag-demo');
     await sleep(400);
 
     // Insert timers at different delays to land on different layers
@@ -828,7 +1088,7 @@
     doInsert(7);
     await sleep(700);
 
-    log('演示', '步进至即将回绕，观察层 0 触发…', 'tag-demo');
+    log(t().tagDemo, t().logDemoStepWrap, 'tag-demo');
     // Step ticks 0..6: fire T0 at tick3 path — expireTick starts 0
     // At expireTick=0, idx=0 → cascade (empty) then fire slot0
     for (let i = 0; i < 3; i++) {
@@ -840,11 +1100,11 @@
     await doStep(true); // tick 3 → fire T0
     await sleep(500);
 
-    log('演示', '删除一个尚未到期的定时器 T1…', 'tag-demo');
+    log(t().tagDemo, t().logDemoDelete, 'tag-demo');
     doDelete(1);
     await sleep(700);
 
-    log('演示', '继续步进；层 0 回绕时将看到高层定时器 Cascade 降级', 'tag-demo');
+    log(t().tagDemo, t().logDemoCascade, 'tag-demo');
     // Continue until wrap: need expireTick to hit multiple of 8
     // Currently after 4 steps expireTick_=4. Need to reach 8 for cascade of L1.
     while (demoRunning && wt.expireTick_ < 8) {
@@ -860,14 +1120,14 @@
     // Loop while < 8: process 4,5,6,7 → expireTick_=8. Cascade at idx==0 when processing 8 hasn't happened yet.
     // Need one more step to process expireTick=8 (idx=0) which cascades.
     if (demoRunning) {
-      log('演示', '下一步将处理槽[0]：先 Cascade 高层，再触发层 0', 'tag-demo');
+      log(t().tagDemo, t().logDemoNextCascade, 'tag-demo');
       await sleep(400);
       await doStep(true);
       await sleep(700);
     }
 
     // Fire remaining that cascaded into L0
-    log('演示', '继续触发已降级到层 0 的定时器…', 'tag-demo');
+    log(t().tagDemo, t().logDemoFireCascaded, 'tag-demo');
     for (let i = 0; i < 6 && demoRunning; i++) {
       if (wt.timer_map_.size === 0) break;
       await doStep(true);
@@ -875,7 +1135,7 @@
     }
 
     if (demoRunning) {
-      log('演示', '演示结束。可手动插入/步进/删除继续探索。', 'tag-demo');
+      log(t().tagDemo, t().logDemoEnd, 'tag-demo');
     }
     demoRunning = false;
     setBusy(false);
@@ -924,7 +1184,22 @@
   });
   $('#btn-demo').addEventListener('click', () => runDemo());
 
+  document.getElementById('lang-en').addEventListener('click', () => {
+    applyLang('en');
+    const url = new URL(location.href);
+    url.searchParams.set('lang', 'en');
+    history.replaceState(null, '', url);
+  });
+  document.getElementById('lang-zh').addEventListener('click', () => {
+    applyLang('zh');
+    const url = new URL(location.href);
+    url.searchParams.set('lang', 'zh');
+    history.replaceState(null, '', url);
+  });
+
+  currentLang = detectLang();
   buildWheels();
+  applyLang(currentLang);
   resetAll();
 })();
 </script>
